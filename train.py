@@ -20,7 +20,7 @@ import numpy as np
 from prepare import FEATURE_COLUMNS, HORIZON_DAYS, TARGET_COLUMN, load_splits
 
 SEED = 42
-LEARNING_RATE = 0.05
+LEARNING_RATE = 0.02
 L2_REG = 1e-3
 MAX_EPOCHS = 1200
 PATIENCE = 120
