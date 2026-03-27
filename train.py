@@ -74,17 +74,43 @@ def logistic_loss(features: np.ndarray, labels: np.ndarray, weights: np.ndarray,
     return float(ce + 0.5 * l2_reg * np.sum(weights[:-1] ** 2))
 
 
-def compute_metrics(
-    logits: np.ndarray, labels: np.ndarray, future_returns: np.ndarray
-) -> Metrics:
-    probabilities = sigmoid(logits)
-    predictions = (probabilities >= 0.5).astype(np.float32)
-
-    correct = float((predictions == labels).mean())
+def classification_stats(probabilities: np.ndarray, labels: np.ndarray, threshold: float) -> tuple[float, float, float, float, np.ndarray]:
+    predictions = (probabilities >= threshold).astype(np.float32)
     tp = float(((predictions == 1) & (labels == 1)).sum())
     tn = float(((predictions == 0) & (labels == 0)).sum())
     fp = float(((predictions == 1) & (labels == 0)).sum())
     fn = float(((predictions == 0) & (labels == 1)).sum())
+    return tp, tn, fp, fn, predictions
+
+
+def select_threshold(probabilities: np.ndarray, labels: np.ndarray) -> float:
+    best_threshold = 0.5
+    best_f1 = -1.0
+    best_balanced_accuracy = -1.0
+    for threshold in np.linspace(0.30, 0.70, 81):
+        tp, tn, fp, fn, _ = classification_stats(probabilities, labels, float(threshold))
+        precision = tp / max(tp + fp, 1.0)
+        recall = tp / max(tp + fn, 1.0)
+        specificity = tn / max(tn + fp, 1.0)
+        f1 = 2 * precision * recall / max(precision + recall, 1e-8)
+        balanced_accuracy = 0.5 * (recall + specificity)
+        if (
+            f1 > best_f1
+            or (abs(f1 - best_f1) < 1e-8 and balanced_accuracy > best_balanced_accuracy)
+            or (abs(f1 - best_f1) < 1e-8 and abs(balanced_accuracy - best_balanced_accuracy) < 1e-8 and abs(threshold - 0.5) < abs(best_threshold - 0.5))
+        ):
+            best_threshold = float(threshold)
+            best_f1 = f1
+            best_balanced_accuracy = balanced_accuracy
+    return best_threshold
+
+
+def compute_metrics(
+    logits: np.ndarray, labels: np.ndarray, future_returns: np.ndarray, threshold: float = 0.5
+) -> Metrics:
+    probabilities = sigmoid(logits)
+    tp, tn, fp, fn, predictions = classification_stats(probabilities, labels, threshold)
+    correct = float((predictions == labels).mean())
 
     precision = tp / max(tp + fp, 1.0)
     recall = tp / max(tp + fn, 1.0)
@@ -135,6 +161,7 @@ def main() -> None:
     best_validation_f1 = -math.inf
     best_epoch = -1
     epochs_without_improvement = 0
+    best_threshold = 0.5
 
     for epoch in range(1, MAX_EPOCHS + 1):
         logits = train_x @ weights
@@ -144,15 +171,19 @@ def main() -> None:
         weights -= LEARNING_RATE * gradient
 
         validation_logits = validation_x @ weights
+        validation_probs = sigmoid(validation_logits)
+        candidate_threshold = select_threshold(validation_probs, validation_y)
         validation_metrics = compute_metrics(
             validation_logits,
             validation_y,
             splits["validation"].frame["future_return"].to_numpy(dtype=np.float32),
+            threshold=candidate_threshold,
         )
         if validation_metrics.f1 > best_validation_f1:
             best_validation_f1 = validation_metrics.f1
             best_epoch = epoch
             best_weights = weights.copy()
+            best_threshold = candidate_threshold
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
@@ -168,16 +199,19 @@ def main() -> None:
         train_logits,
         train_y,
         splits["train"].frame["future_return"].to_numpy(dtype=np.float32),
+        threshold=best_threshold,
     )
     validation_metrics = compute_metrics(
         validation_logits,
         validation_y,
         splits["validation"].frame["future_return"].to_numpy(dtype=np.float32),
+        threshold=best_threshold,
     )
     test_metrics = compute_metrics(
         test_logits,
         test_y,
         splits["test"].frame["future_return"].to_numpy(dtype=np.float32),
+        threshold=best_threshold,
     )
 
     print("---")
@@ -187,6 +221,7 @@ def main() -> None:
     print(f"features:             {len(FEATURE_COLUMNS)}")
     print(f"learning_rate:        {LEARNING_RATE}")
     print(f"l2_reg:               {L2_REG}")
+    print(f"decision_threshold:   {best_threshold:.3f}")
     print(f"best_epoch:           {best_epoch}")
     print(f"train_loss:           {logistic_loss(train_x, train_y, best_weights, L2_REG):.4f}")
     print(f"train_accuracy:       {train_metrics.accuracy:.4f}")
