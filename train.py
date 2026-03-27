@@ -32,6 +32,7 @@ THRESHOLD_MAX = 0.70
 THRESHOLD_STEPS = 81
 EXTRA_FEATURE_COLUMNS = ("breakout_20", "drawdown_20", "rsi_14")
 INTERACTION_FEATURE_PAIRS = (
+    ("ret_1", "ret_3"),
     ("ret_5", "volatility_5"),
     ("ret_3", "breakout_20"),
     ("ret_20", "volatility_10"),
