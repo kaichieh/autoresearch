@@ -21,4 +21,6 @@ AGENTS.md
 
 # Experimental code/artifacts
 dev/
+run.log
+results_work.tsv
 
