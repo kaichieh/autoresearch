@@ -28,3 +28,4 @@ eb05413	0.7083	0.5581	0.5188	0.7133	0.5662	0.5042	discard	round 38 focus interac
 4e269c9	0.7119	0.5707	0.5336	0.7063	0.5637	0.5056	keep	add ret_20 by sma_gap_10 interaction to extended feature model
 ffbac85	0.7120	0.5720	0.5352	0.7088	0.5700	0.5133	keep	add ret_3 by breakout_20 interaction on extended feature model
 77196fa	0.7126	0.5732	0.5366	0.7078	0.5700	0.5140	keep	add range_pct by volume_vs_20 interaction on extended feature model
+1fe71dd	0.7131	0.5732	0.5363	0.7084	0.5712	0.5155	keep	add volume_change_1 by breakout_20 interaction on extended feature model
