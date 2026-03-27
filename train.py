@@ -73,6 +73,18 @@ def add_bias(features: np.ndarray) -> np.ndarray:
     return np.concatenate([features, np.ones((features.shape[0], 1), dtype=features.dtype)], axis=1)
 
 
+def add_interaction_terms(
+    train_x: np.ndarray, validation_x: np.ndarray, test_x: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    interaction_pairs = [(2, 8), (4, 9), (5, 7), (0, 10), (3, 11)]
+
+    def augment(features: np.ndarray) -> np.ndarray:
+        extras = [features[:, i : i + 1] * features[:, j : j + 1] for i, j in interaction_pairs]
+        return np.concatenate([features] + extras, axis=1)
+
+    return augment(train_x), augment(validation_x), augment(test_x)
+
+
 def logistic_loss(features: np.ndarray, labels: np.ndarray, weights: np.ndarray, l2_reg: float) -> float:
     logits = features @ weights
     probs = sigmoid(logits)
@@ -190,6 +202,7 @@ def main() -> None:
     test_y = splits["test"].labels
 
     train_x, validation_x, test_x = standardize(train_x, validation_x, test_x)
+    train_x, validation_x, test_x = add_interaction_terms(train_x, validation_x, test_x)
     train_x = add_bias(train_x)
     validation_x = add_bias(validation_x)
     test_x = add_bias(test_x)
