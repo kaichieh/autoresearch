@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import math
+import os
 import random
 from dataclasses import dataclass
 
@@ -23,6 +24,12 @@ LEARNING_RATE = 0.05
 L2_REG = 1e-3
 MAX_EPOCHS = 1200
 PATIENCE = 120
+POS_WEIGHT = 1.0
+NEG_WEIGHT = 1.0
+THRESHOLD_OBJECTIVE = "f1"
+THRESHOLD_MIN = 0.30
+THRESHOLD_MAX = 0.70
+THRESHOLD_STEPS = 81
 
 
 @dataclass
@@ -74,6 +81,21 @@ def logistic_loss(features: np.ndarray, labels: np.ndarray, weights: np.ndarray,
     return float(ce + 0.5 * l2_reg * np.sum(weights[:-1] ** 2))
 
 
+def get_env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    return float(value) if value is not None else default
+
+
+def get_env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    return int(value) if value is not None else default
+
+
+def get_env_str(name: str, default: str) -> str:
+    value = os.getenv(name)
+    return value if value is not None else default
+
+
 def classification_stats(probabilities: np.ndarray, labels: np.ndarray, threshold: float) -> tuple[float, float, float, float, np.ndarray]:
     predictions = (probabilities >= threshold).astype(np.float32)
     tp = float(((predictions == 1) & (labels == 1)).sum())
@@ -83,25 +105,31 @@ def classification_stats(probabilities: np.ndarray, labels: np.ndarray, threshol
     return tp, tn, fp, fn, predictions
 
 
-def select_threshold(probabilities: np.ndarray, labels: np.ndarray) -> float:
+def select_threshold(probabilities: np.ndarray, labels: np.ndarray, objective: str, threshold_min: float, threshold_max: float, threshold_steps: int) -> float:
     best_threshold = 0.5
-    best_f1 = -1.0
-    best_balanced_accuracy = -1.0
-    for threshold in np.linspace(0.30, 0.70, 81):
+    best_primary = -1.0
+    best_secondary = -1.0
+    for threshold in np.linspace(threshold_min, threshold_max, threshold_steps):
         tp, tn, fp, fn, _ = classification_stats(probabilities, labels, float(threshold))
         precision = tp / max(tp + fp, 1.0)
         recall = tp / max(tp + fn, 1.0)
         specificity = tn / max(tn + fp, 1.0)
         f1 = 2 * precision * recall / max(precision + recall, 1e-8)
         balanced_accuracy = 0.5 * (recall + specificity)
+        if objective == "balanced_accuracy":
+            primary = balanced_accuracy
+            secondary = f1
+        else:
+            primary = f1
+            secondary = balanced_accuracy
         if (
-            f1 > best_f1
-            or (abs(f1 - best_f1) < 1e-8 and balanced_accuracy > best_balanced_accuracy)
-            or (abs(f1 - best_f1) < 1e-8 and abs(balanced_accuracy - best_balanced_accuracy) < 1e-8 and abs(threshold - 0.5) < abs(best_threshold - 0.5))
+            primary > best_primary
+            or (abs(primary - best_primary) < 1e-8 and secondary > best_secondary)
+            or (abs(primary - best_primary) < 1e-8 and abs(secondary - best_secondary) < 1e-8 and abs(threshold - 0.5) < abs(best_threshold - 0.5))
         ):
             best_threshold = float(threshold)
-            best_f1 = f1
-            best_balanced_accuracy = balanced_accuracy
+            best_primary = primary
+            best_secondary = secondary
     return best_threshold
 
 
@@ -142,6 +170,16 @@ def compute_metrics(
 
 def main() -> None:
     set_seed(SEED)
+    learning_rate = get_env_float("AR_LEARNING_RATE", LEARNING_RATE)
+    l2_reg = get_env_float("AR_L2_REG", L2_REG)
+    max_epochs = get_env_int("AR_MAX_EPOCHS", MAX_EPOCHS)
+    patience = get_env_int("AR_PATIENCE", PATIENCE)
+    pos_weight = get_env_float("AR_POS_WEIGHT", POS_WEIGHT)
+    neg_weight = get_env_float("AR_NEG_WEIGHT", NEG_WEIGHT)
+    threshold_objective = get_env_str("AR_THRESHOLD_OBJECTIVE", THRESHOLD_OBJECTIVE)
+    threshold_min = get_env_float("AR_THRESHOLD_MIN", THRESHOLD_MIN)
+    threshold_max = get_env_float("AR_THRESHOLD_MAX", THRESHOLD_MAX)
+    threshold_steps = get_env_int("AR_THRESHOLD_STEPS", THRESHOLD_STEPS)
 
     splits = load_splits()
     train_x = splits["train"].features
@@ -163,16 +201,24 @@ def main() -> None:
     epochs_without_improvement = 0
     best_threshold = 0.5
 
-    for epoch in range(1, MAX_EPOCHS + 1):
+    for epoch in range(1, max_epochs + 1):
         logits = train_x @ weights
         probs = sigmoid(logits)
-        gradient = train_x.T @ (probs - train_y) / train_x.shape[0]
-        gradient[:-1] += L2_REG * weights[:-1]
-        weights -= LEARNING_RATE * gradient
+        sample_weights = np.where(train_y == 1.0, pos_weight, neg_weight).astype(np.float32)
+        gradient = train_x.T @ ((probs - train_y) * sample_weights) / train_x.shape[0]
+        gradient[:-1] += l2_reg * weights[:-1]
+        weights -= learning_rate * gradient
 
         validation_logits = validation_x @ weights
         validation_probs = sigmoid(validation_logits)
-        candidate_threshold = select_threshold(validation_probs, validation_y)
+        candidate_threshold = select_threshold(
+            validation_probs,
+            validation_y,
+            objective=threshold_objective,
+            threshold_min=threshold_min,
+            threshold_max=threshold_max,
+            threshold_steps=threshold_steps,
+        )
         validation_metrics = compute_metrics(
             validation_logits,
             validation_y,
@@ -188,7 +234,7 @@ def main() -> None:
         else:
             epochs_without_improvement += 1
 
-        if epochs_without_improvement >= PATIENCE:
+        if epochs_without_improvement >= patience:
             break
 
     train_logits = train_x @ best_weights
@@ -219,11 +265,14 @@ def main() -> None:
     print(f"target_column:        {TARGET_COLUMN}")
     print(f"model:                logistic_regression")
     print(f"features:             {len(FEATURE_COLUMNS)}")
-    print(f"learning_rate:        {LEARNING_RATE}")
-    print(f"l2_reg:               {L2_REG}")
+    print(f"learning_rate:        {learning_rate}")
+    print(f"l2_reg:               {l2_reg}")
+    print(f"pos_weight:           {pos_weight}")
+    print(f"neg_weight:           {neg_weight}")
+    print(f"threshold_objective:  {threshold_objective}")
     print(f"decision_threshold:   {best_threshold:.3f}")
     print(f"best_epoch:           {best_epoch}")
-    print(f"train_loss:           {logistic_loss(train_x, train_y, best_weights, L2_REG):.4f}")
+    print(f"train_loss:           {logistic_loss(train_x, train_y, best_weights, l2_reg):.4f}")
     print(f"train_accuracy:       {train_metrics.accuracy:.4f}")
     print(f"validation_accuracy:  {validation_metrics.accuracy:.4f}")
     print(f"validation_f1:        {validation_metrics.f1:.4f}")
