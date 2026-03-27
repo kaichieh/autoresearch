@@ -30,6 +30,15 @@ THRESHOLD_OBJECTIVE = "f1"
 THRESHOLD_MIN = 0.30
 THRESHOLD_MAX = 0.70
 THRESHOLD_STEPS = 81
+EXTRA_FEATURE_COLUMNS = ("breakout_20", "drawdown_20", "rsi_14")
+INTERACTION_FEATURE_PAIRS = (
+    ("ret_5", "volatility_5"),
+    ("ret_20", "volatility_10"),
+    ("sma_gap_5", "sma_gap_20"),
+    ("ret_1", "range_pct"),
+    ("ret_10", "volume_change_1"),
+    ("volume_vs_20", "drawdown_20"),
+)
 
 
 @dataclass
@@ -74,15 +83,35 @@ def add_bias(features: np.ndarray) -> np.ndarray:
 
 
 def add_interaction_terms(
-    train_x: np.ndarray, validation_x: np.ndarray, test_x: np.ndarray
+    train_x: np.ndarray, validation_x: np.ndarray, test_x: np.ndarray, feature_names: list[str]
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    interaction_pairs = [(2, 8), (4, 9), (5, 7), (0, 10), (3, 11)]
+    feature_index = {name: idx for idx, name in enumerate(feature_names)}
+    interaction_pairs = [
+        (feature_index[left], feature_index[right])
+        for left, right in INTERACTION_FEATURE_PAIRS
+        if left in feature_index and right in feature_index
+    ]
 
     def augment(features: np.ndarray) -> np.ndarray:
         extras = [features[:, i : i + 1] * features[:, j : j + 1] for i, j in interaction_pairs]
         return np.concatenate([features] + extras, axis=1)
 
     return augment(train_x), augment(validation_x), augment(test_x)
+
+
+def assemble_feature_matrices(
+    splits: dict[str, object],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+    feature_names = list(FEATURE_COLUMNS)
+    for column in EXTRA_FEATURE_COLUMNS:
+        if column in splits["train"].frame.columns:
+            feature_names.append(column)
+    return (
+        splits["train"].frame[feature_names].to_numpy(dtype=np.float32),
+        splits["validation"].frame[feature_names].to_numpy(dtype=np.float32),
+        splits["test"].frame[feature_names].to_numpy(dtype=np.float32),
+        feature_names,
+    )
 
 
 def logistic_loss(features: np.ndarray, labels: np.ndarray, weights: np.ndarray, l2_reg: float) -> float:
@@ -194,15 +223,13 @@ def main() -> None:
     threshold_steps = get_env_int("AR_THRESHOLD_STEPS", THRESHOLD_STEPS)
 
     splits = load_splits()
-    train_x = splits["train"].features
-    validation_x = splits["validation"].features
-    test_x = splits["test"].features
+    train_x, validation_x, test_x, feature_names = assemble_feature_matrices(splits)
     train_y = splits["train"].labels
     validation_y = splits["validation"].labels
     test_y = splits["test"].labels
 
     train_x, validation_x, test_x = standardize(train_x, validation_x, test_x)
-    train_x, validation_x, test_x = add_interaction_terms(train_x, validation_x, test_x)
+    train_x, validation_x, test_x = add_interaction_terms(train_x, validation_x, test_x, feature_names)
     train_x = add_bias(train_x)
     validation_x = add_bias(validation_x)
     test_x = add_bias(test_x)
@@ -277,7 +304,7 @@ def main() -> None:
     print(f"task:                 GLD_{HORIZON_DAYS}d_direction")
     print(f"target_column:        {TARGET_COLUMN}")
     print(f"model:                logistic_regression")
-    print(f"features:             {len(FEATURE_COLUMNS)}")
+    print(f"features:             {len(feature_names)}")
     print(f"learning_rate:        {learning_rate}")
     print(f"l2_reg:               {l2_reg}")
     print(f"pos_weight:           {pos_weight}")
