@@ -23,7 +23,8 @@ TRAIN_FRACTION = 0.70
 VALID_FRACTION = 0.15
 TEST_FRACTION = 0.15
 
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "autoresearch-gld")
+REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_DIR = os.path.join(REPO_DIR, ".cache", "autoresearch-gld")
 RAW_DATA_PATH = os.path.join(CACHE_DIR, "gld_daily.csv")
 PROCESSED_DATA_PATH = os.path.join(CACHE_DIR, "gld_features.csv")
 METADATA_PATH = os.path.join(CACHE_DIR, "metadata.json")

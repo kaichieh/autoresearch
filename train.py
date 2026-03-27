@@ -15,17 +15,14 @@ import random
 from dataclasses import dataclass
 
 import numpy as np
-import torch
-import torch.nn as nn
 
 from prepare import FEATURE_COLUMNS, HORIZON_DAYS, TARGET_COLUMN, load_splits
 
 SEED = 42
-HIDDEN_DIM = 32
-LEARNING_RATE = 1e-3
-WEIGHT_DECAY = 1e-4
-MAX_EPOCHS = 400
-PATIENCE = 40
+LEARNING_RATE = 0.05
+L2_REG = 1e-3
+MAX_EPOCHS = 1200
+PATIENCE = 120
 
 
 @dataclass
@@ -42,25 +39,9 @@ class Metrics:
     buy_and_hold_return: float
 
 
-class DirectionClassifier(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int) -> None:
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1),
-        )
-
-    def forward(self, features: torch.Tensor) -> torch.Tensor:
-        return self.network(features).squeeze(-1)
-
-
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
 
 
 def standardize(
@@ -76,34 +57,49 @@ def standardize(
     )
 
 
-def to_tensor(array: np.ndarray, device: torch.device) -> torch.Tensor:
-    return torch.tensor(array, dtype=torch.float32, device=device)
+def sigmoid(values: np.ndarray) -> np.ndarray:
+    clipped = np.clip(values, -30.0, 30.0)
+    return 1.0 / (1.0 + np.exp(-clipped))
 
 
-def compute_classification_metrics(
-    logits: torch.Tensor, labels: torch.Tensor, future_returns: np.ndarray
+def add_bias(features: np.ndarray) -> np.ndarray:
+    return np.concatenate([features, np.ones((features.shape[0], 1), dtype=features.dtype)], axis=1)
+
+
+def logistic_loss(features: np.ndarray, labels: np.ndarray, weights: np.ndarray, l2_reg: float) -> float:
+    logits = features @ weights
+    probs = sigmoid(logits)
+    eps = 1e-8
+    ce = -(labels * np.log(probs + eps) + (1.0 - labels) * np.log(1.0 - probs + eps)).mean()
+    return float(ce + 0.5 * l2_reg * np.sum(weights[:-1] ** 2))
+
+
+def compute_metrics(
+    logits: np.ndarray, labels: np.ndarray, future_returns: np.ndarray
 ) -> Metrics:
-    probabilities = torch.sigmoid(logits)
-    predictions = (probabilities >= 0.5).float()
+    probabilities = sigmoid(logits)
+    predictions = (probabilities >= 0.5).astype(np.float32)
 
-    correct = (predictions == labels).float().mean().item()
-    tp = ((predictions == 1) & (labels == 1)).sum().item()
-    tn = ((predictions == 0) & (labels == 0)).sum().item()
-    fp = ((predictions == 1) & (labels == 0)).sum().item()
-    fn = ((predictions == 0) & (labels == 1)).sum().item()
+    correct = float((predictions == labels).mean())
+    tp = float(((predictions == 1) & (labels == 1)).sum())
+    tn = float(((predictions == 0) & (labels == 0)).sum())
+    fp = float(((predictions == 1) & (labels == 0)).sum())
+    fn = float(((predictions == 0) & (labels == 1)).sum())
 
-    precision = tp / max(tp + fp, 1)
-    recall = tp / max(tp + fn, 1)
-    specificity = tn / max(tn + fp, 1)
+    precision = tp / max(tp + fp, 1.0)
+    recall = tp / max(tp + fn, 1.0)
+    specificity = tn / max(tn + fp, 1.0)
     f1 = 2 * precision * recall / max(precision + recall, 1e-8)
     balanced_accuracy = 0.5 * (recall + specificity)
 
-    strategy_signal = predictions.detach().cpu().numpy().astype(np.float32)
-    strategy_returns = strategy_signal * future_returns
+    strategy_returns = predictions * future_returns
     strategy_compound = float(np.prod(1.0 + strategy_returns) - 1.0)
     buy_and_hold_compound = float(np.prod(1.0 + future_returns) - 1.0)
 
-    loss = nn.functional.binary_cross_entropy_with_logits(logits, labels).item()
+    eps = 1e-8
+    loss = float(
+        -(labels * np.log(probabilities + eps) + (1.0 - labels) * np.log(1.0 - probabilities + eps)).mean()
+    )
     return Metrics(
         loss=loss,
         accuracy=correct,
@@ -111,28 +107,15 @@ def compute_classification_metrics(
         recall=recall,
         f1=f1,
         balanced_accuracy=balanced_accuracy,
-        positive_rate=predictions.mean().item(),
+        positive_rate=float(predictions.mean()),
         avg_future_return=float(np.mean(future_returns)),
         strategy_return=strategy_compound,
         buy_and_hold_return=buy_and_hold_compound,
     )
 
 
-def evaluate(
-    model: nn.Module,
-    features: torch.Tensor,
-    labels: torch.Tensor,
-    future_returns: np.ndarray,
-) -> Metrics:
-    model.eval()
-    with torch.no_grad():
-        logits = model(features)
-    return compute_classification_metrics(logits, labels, future_returns)
-
-
 def main() -> None:
     set_seed(SEED)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     splits = load_splits()
     train_x = splits["train"].features
@@ -143,41 +126,33 @@ def main() -> None:
     test_y = splits["test"].labels
 
     train_x, validation_x, test_x = standardize(train_x, validation_x, test_x)
+    train_x = add_bias(train_x)
+    validation_x = add_bias(validation_x)
+    test_x = add_bias(test_x)
 
-    train_features = to_tensor(train_x, device)
-    validation_features = to_tensor(validation_x, device)
-    test_features = to_tensor(test_x, device)
-    train_labels = to_tensor(train_y, device)
-    validation_labels = to_tensor(validation_y, device)
-    test_labels = to_tensor(test_y, device)
-
-    model = DirectionClassifier(input_dim=train_features.shape[1], hidden_dim=HIDDEN_DIM).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    loss_fn = nn.BCEWithLogitsLoss()
-
-    best_state = None
+    weights = np.zeros(train_x.shape[1], dtype=np.float32)
+    best_weights = weights.copy()
     best_validation_f1 = -math.inf
     best_epoch = -1
     epochs_without_improvement = 0
 
     for epoch in range(1, MAX_EPOCHS + 1):
-        model.train()
-        optimizer.zero_grad(set_to_none=True)
-        logits = model(train_features)
-        loss = loss_fn(logits, train_labels)
-        loss.backward()
-        optimizer.step()
+        logits = train_x @ weights
+        probs = sigmoid(logits)
+        gradient = train_x.T @ (probs - train_y) / train_x.shape[0]
+        gradient[:-1] += L2_REG * weights[:-1]
+        weights -= LEARNING_RATE * gradient
 
-        validation_metrics = evaluate(
-            model,
-            validation_features,
-            validation_labels,
+        validation_logits = validation_x @ weights
+        validation_metrics = compute_metrics(
+            validation_logits,
+            validation_y,
             splits["validation"].frame["future_return"].to_numpy(dtype=np.float32),
         )
         if validation_metrics.f1 > best_validation_f1:
             best_validation_f1 = validation_metrics.f1
             best_epoch = epoch
-            best_state = {name: tensor.detach().cpu().clone() for name, tensor in model.state_dict().items()}
+            best_weights = weights.copy()
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
@@ -185,40 +160,35 @@ def main() -> None:
         if epochs_without_improvement >= PATIENCE:
             break
 
-    if best_state is None:
-        raise RuntimeError("Training did not produce a valid checkpoint.")
+    train_logits = train_x @ best_weights
+    validation_logits = validation_x @ best_weights
+    test_logits = test_x @ best_weights
 
-    model.load_state_dict(best_state)
-    model.to(device)
-
-    train_metrics = evaluate(
-        model,
-        train_features,
-        train_labels,
+    train_metrics = compute_metrics(
+        train_logits,
+        train_y,
         splits["train"].frame["future_return"].to_numpy(dtype=np.float32),
     )
-    validation_metrics = evaluate(
-        model,
-        validation_features,
-        validation_labels,
+    validation_metrics = compute_metrics(
+        validation_logits,
+        validation_y,
         splits["validation"].frame["future_return"].to_numpy(dtype=np.float32),
     )
-    test_metrics = evaluate(
-        model,
-        test_features,
-        test_labels,
+    test_metrics = compute_metrics(
+        test_logits,
+        test_y,
         splits["test"].frame["future_return"].to_numpy(dtype=np.float32),
     )
 
     print("---")
     print(f"task:                 GLD_{HORIZON_DAYS}d_direction")
     print(f"target_column:        {TARGET_COLUMN}")
-    print(f"device:               {device.type}")
+    print(f"model:                logistic_regression")
     print(f"features:             {len(FEATURE_COLUMNS)}")
-    print(f"hidden_dim:           {HIDDEN_DIM}")
     print(f"learning_rate:        {LEARNING_RATE}")
-    print(f"weight_decay:         {WEIGHT_DECAY}")
+    print(f"l2_reg:               {L2_REG}")
     print(f"best_epoch:           {best_epoch}")
+    print(f"train_loss:           {logistic_loss(train_x, train_y, best_weights, L2_REG):.4f}")
     print(f"train_accuracy:       {train_metrics.accuracy:.4f}")
     print(f"validation_accuracy:  {validation_metrics.accuracy:.4f}")
     print(f"validation_f1:        {validation_metrics.f1:.4f}")
