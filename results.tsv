@@ -26,3 +26,4 @@ eb05413	0.7083	0.5581	0.5188	0.7133	0.5662	0.5042	discard	round 38 focus interac
 78f4186	0.7092	0.5631	0.5249	0.7014	0.5586	0.5016	keep	rerun baseline interaction model on cached 2026-03-24 data
 08e8d44	0.7096	0.5669	0.5297	0.7059	0.5649	0.5078	keep	add drawdown-volume interaction with extended feature set
 4e269c9	0.7119	0.5707	0.5336	0.7063	0.5637	0.5056	keep	add ret_20 by sma_gap_10 interaction to extended feature model
+ffbac85	0.7120	0.5720	0.5352	0.7088	0.5700	0.5133	keep	add ret_3 by breakout_20 interaction on extended feature model
