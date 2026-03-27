@@ -1,0 +1,2 @@
+commit	validation_f1	validation_accuracy	validation_bal_acc	test_f1	test_accuracy	test_bal_acc	status	description
+3c3116e	0.6967	0.5404	0.5010	0.7133	0.5712	0.5119	keep	numpy logistic baseline

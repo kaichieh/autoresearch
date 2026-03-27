@@ -16,6 +16,7 @@ Instead of training a language model for five minutes on a GPU, this version dow
 - `prepare.py`: downloads GLD daily price history and engineers features.
 - `train.py`: trains and evaluates the direction classifier.
 - `program.md`: the research brief for future agent-driven iteration.
+- `results.tsv`: experiment scoreboard keyed by commit SHA.
 
 ## Task Definition
 
@@ -51,12 +52,22 @@ Train the baseline:
 uv run train.py
 ```
 
+Record the result in `results.tsv` after each experiment. A TSV is just a tab-separated table, so it stays easy to diff in git and easy to scan in a text editor.
+
+Example:
+
+```tsv
+commit	validation_f1	validation_accuracy	validation_bal_acc	test_f1	test_accuracy	test_bal_acc	status	description
+3c3116e	0.6967	0.5404	0.5010	0.7133	0.5712	0.5119	keep	numpy logistic baseline
+```
+
 ## Design Notes
 
 - Splits are chronological, not shuffled.
 - Features use only information known at prediction time.
 - `validation_f1` is the selection metric.
 - The reported strategy return is only a toy sanity check, not an investable backtest.
+- `results.tsv` is the lightweight experiment ledger for comparing commits.
 
 ## Ideas For Future Experiments
 
