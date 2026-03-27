@@ -89,8 +89,14 @@ LOOP FOREVER:
    Read the end of `run.log`, diagnose the failure, and try a small fix.
    If the idea still fails after a few attempts, give up on that idea.
 7. Record the result in `results.tsv`.
-8. If `validation_f1` improved, advance the branch and keep the commit.
+8. If `validation_f1` improved, keep the commit, then immediately `git push` the updated branch so the new best result is published.
 9. If `validation_f1` is equal or worse, reset back to where the experiment started and move on to the next idea.
+
+When a run refreshes the best recorded validation score, treat that as a promotion event:
+
+- update `results.tsv`
+- create a commit that captures the winning experiment
+- push that commit to the remote right away
 
 The primary selection metric is still `validation_f1`. Use `validation_bal_acc` as an important guardrail so the model does not collapse into predicting almost all ups or almost all downs.
 
