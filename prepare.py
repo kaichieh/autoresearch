@@ -97,6 +97,17 @@ def add_features(frame: pd.DataFrame) -> pd.DataFrame:
     df["volume_change_1"] = volume.pct_change(1)
     df["volume_vs_20"] = volume / volume.rolling(20).mean() - 1.0
 
+    # Extra features for extended model
+    df["breakout_20"] = (close > close.shift(1).rolling(20).max()).astype(float)
+    df["drawdown_20"] = (close - close.rolling(20).max()) / close.rolling(20).max()
+    
+    # RSI-14
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / (loss + 1e-10)
+    df["rsi_14"] = 100 - (100 / (1 + rs))
+
     future_close = close.shift(-HORIZON_DAYS)
     df[TARGET_COLUMN] = (future_close > close).astype(int)
     df["future_return"] = future_close / close - 1.0
