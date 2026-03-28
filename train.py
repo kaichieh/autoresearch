@@ -45,6 +45,7 @@ INTERACTION_FEATURE_PAIRS = (
     ("volume_change_1", "breakout_20"),
     ("range_pct", "volume_vs_20"),
     ("volume_vs_20", "drawdown_20"),
+    ("intraday_return", "volume_vs_20"),
 )
 
 
