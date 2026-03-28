@@ -1,12 +1,12 @@
 # Next Tasks
 
-- [ ] 直接加入 `close_location` 進預設並做 feature replacement。
-- [ ] 試新的 `objective` / `guardrail` 組合，重新平衡 `validation_f1` 和 `validation_bal_acc`。
-- [ ] 擴到 `prepare.py` 增加真正新的時間序列特徵。
-- [ ] 把 `upper_shadow` 和 `lower_shadow` 納入預設候選，做系統化 feature replacement。
-- [ ] 針對 `volume_vs_20` 相關 interaction 做更窄但更深的搜尋。
-- [ ] 測試 `close_location` 與 `volume_vs_20`、`drawdown_20` 的新 interaction 組合。
-- [ ] 測試 `body_to_range` 是否能替換現有某個短期動能特徵並提升 validation 表現。
-- [ ] 在 `prepare.py` 增加 rolling z-score 類價格與成交量特徵。
-- [ ] 在 `prepare.py` 增加多視窗趨勢一致性特徵，例如 `ret_3`、`ret_5`、`ret_10` 同向指標。
-- [ ] 試 walk-forward validation 或多段 validation，檢查目前最佳設定是否穩定。
+- [x] Directly add `close_location` to the default set and test feature replacement. Result: `validation_f1 = 0.7101`, did not beat `0.7164`.
+- [x] Try new `objective` / `guardrail` combinations to rebalance `validation_f1` and `validation_bal_acc`. Result: balanced-accuracy objective fell to `validation_f1 = 0.6505`.
+- [x] Extend `prepare.py` with genuinely new time-series features. Added `price_z_20`, `volume_z_20`, `trend_score_3_5_10`, and `trend_agree_3_5_10`.
+- [x] Add `upper_shadow` and `lower_shadow` into the default candidate pool and run systematic replacement tests. Result: `validation_f1 = 0.7140`, still below best.
+- [x] Run a narrower but deeper search around `volume_vs_20` interactions. Completed; current best still comes from this line at `validation_f1 = 0.7164`.
+- [x] Test new `close_location` interactions with `volume_vs_20` and `drawdown_20`. Result: `validation_f1 = 0.7133`, no breakthrough.
+- [x] Test whether `body_to_range` can replace an existing short-horizon momentum feature. Result: `validation_f1 = 0.7111`, no breakthrough.
+- [x] Add rolling z-score style price and volume features in `prepare.py`. Result: added `price_z_20` and `volume_z_20`; test reached `validation_f1 = 0.7108`.
+- [x] Add multi-window trend-consistency features in `prepare.py`. Result: added `trend_score_3_5_10` and `trend_agree_3_5_10`; test reached `validation_f1 = 0.7143`.
+- [x] Run walk-forward or multi-segment validation to check whether the current best setup is stable. Result: 3-fold chronological walk-forward mean `validation_f1 = 0.7131`, min `0.6957`, mean `validation_bal_acc = 0.5224`.

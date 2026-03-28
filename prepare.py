@@ -108,6 +108,22 @@ def add_features(frame: pd.DataFrame) -> pd.DataFrame:
     rs = gain / (loss + 1e-10)
     df["rsi_14"] = 100 - (100 / (1 + rs))
 
+    # New time-series features for broader experiments
+    close_mean_20 = close.rolling(20).mean()
+    close_std_20 = close.rolling(20).std()
+    volume_mean_20 = volume.rolling(20).mean()
+    volume_std_20 = volume.rolling(20).std()
+    df["price_z_20"] = (close - close_mean_20) / (close_std_20 + 1e-10)
+    df["volume_z_20"] = (volume - volume_mean_20) / (volume_std_20 + 1e-10)
+
+    trend_sign_3 = np.sign(df["ret_3"])
+    trend_sign_5 = np.sign(df["ret_5"])
+    trend_sign_10 = np.sign(df["ret_10"])
+    df["trend_score_3_5_10"] = trend_sign_3 + trend_sign_5 + trend_sign_10
+    df["trend_agree_3_5_10"] = (
+        (trend_sign_3 == trend_sign_5) & (trend_sign_5 == trend_sign_10) & (trend_sign_3 != 0)
+    ).astype(float)
+
     future_close = close.shift(-HORIZON_DAYS)
     df[TARGET_COLUMN] = (future_close > close).astype(int)
     df["future_return"] = future_close / close - 1.0

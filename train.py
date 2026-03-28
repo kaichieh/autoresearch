@@ -142,6 +142,9 @@ def assemble_feature_matrices(
     for column in EXTRA_FEATURE_COLUMNS:
         if column in splits["train"].frame.columns:
             feature_names.append(column)
+    for column in get_env_csv("AR_EXTRA_BASE_FEATURES", ()):
+        if column in splits["train"].frame.columns and column not in feature_names:
+            feature_names.append(column)
     drop_features = set(get_env_csv("AR_DROP_FEATURES", DROP_FEATURE_COLUMNS))
     feature_names = [name for name in feature_names if name not in drop_features]
 
