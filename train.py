@@ -31,8 +31,8 @@ THRESHOLD_MIN = 0.30
 THRESHOLD_MAX = 0.70
 THRESHOLD_STEPS = 401
 EXTRA_FEATURE_COLUMNS = ("breakout_20", "drawdown_20", "rsi_14")
-DROP_FEATURE_COLUMNS = ("ret_1", "volume_change_1")
-DERIVED_FEATURE_COLUMNS = ("overnight_gap", "intraday_return")
+DROP_FEATURE_COLUMNS = ("ret_1", "volume_change_1", "range_pct")
+DERIVED_FEATURE_COLUMNS = ("overnight_gap", "intraday_return", "upper_shadow")
 INTERACTION_FEATURE_PAIRS = (
     ("ret_1", "ret_3"),
     ("ret_5", "volatility_5"),
@@ -283,7 +283,8 @@ def compute_metrics(
 
 
 def main() -> None:
-    set_seed(SEED)
+    seed = get_env_int("AR_SEED", SEED)
+    set_seed(seed)
     learning_rate = get_env_float("AR_LEARNING_RATE", LEARNING_RATE)
     l2_reg = get_env_float("AR_L2_REG", L2_REG)
     max_epochs = get_env_int("AR_MAX_EPOCHS", MAX_EPOCHS)
