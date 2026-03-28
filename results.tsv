@@ -30,3 +30,4 @@ ffbac85	0.7120	0.5720	0.5352	0.7088	0.5700	0.5133	keep	add ret_3 by breakout_20 
 77196fa	0.7126	0.5732	0.5366	0.7078	0.5700	0.5140	keep	add range_pct by volume_vs_20 interaction on extended feature model
 1fe71dd	0.7131	0.5732	0.5363	0.7084	0.5712	0.5155	keep	add volume_change_1 by breakout_20 interaction on extended feature model
 c89b248	0.7132	0.5745	0.5379	0.7061	0.5675	0.5115	keep	add ret_1 by ret_3 interaction on extended feature model
+19a4227	0.7148	0.5758	0.5389	0.7056	0.5675	0.5118	keep	replace ret_1 and volume_change_1 with overnight gap and intraday return features
