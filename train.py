@@ -43,6 +43,8 @@ INTERACTION_FEATURE_PAIRS = (
     ("volume_change_1", "breakout_20"),
     ("range_pct", "volume_vs_20"),
     ("volume_vs_20", "drawdown_20"),
+    ("ret_5", "sma_gap_5"),
+    ("ret_3", "drawdown_20"),
 )
 
 
