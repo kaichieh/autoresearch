@@ -29,8 +29,10 @@ NEG_WEIGHT = 1.3
 THRESHOLD_OBJECTIVE = "f1"
 THRESHOLD_MIN = 0.30
 THRESHOLD_MAX = 0.70
-THRESHOLD_STEPS = 81
+THRESHOLD_STEPS = 401
 EXTRA_FEATURE_COLUMNS = ("breakout_20", "drawdown_20", "rsi_14")
+DROP_FEATURE_COLUMNS = ("ret_1", "volume_change_1")
+DERIVED_FEATURE_COLUMNS = ("overnight_gap", "intraday_return")
 INTERACTION_FEATURE_PAIRS = (
     ("ret_1", "ret_3"),
     ("ret_5", "volatility_5"),
@@ -93,9 +95,10 @@ def add_interaction_terms(
     train_x: np.ndarray, validation_x: np.ndarray, test_x: np.ndarray, feature_names: list[str]
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     feature_index = {name: idx for idx, name in enumerate(feature_names)}
+    configured_pairs = get_env_interaction_pairs("AR_EXTRA_INTERACTIONS", INTERACTION_FEATURE_PAIRS)
     interaction_pairs = [
         (feature_index[left], feature_index[right])
-        for left, right in INTERACTION_FEATURE_PAIRS
+        for left, right in configured_pairs
         if left in feature_index and right in feature_index
     ]
 
@@ -106,6 +109,32 @@ def add_interaction_terms(
     return augment(train_x), augment(validation_x), augment(test_x)
 
 
+def build_derived_feature_column(frame, name: str) -> np.ndarray:
+    eps = 1e-6
+    open_price = frame["open"].to_numpy(dtype=np.float32)
+    high_price = frame["high"].to_numpy(dtype=np.float32)
+    low_price = frame["low"].to_numpy(dtype=np.float32)
+    close_price = frame["close"].to_numpy(dtype=np.float32)
+    ret_1 = frame["ret_1"].to_numpy(dtype=np.float32)
+    range_size = np.maximum(high_price - low_price, eps)
+    body_size = close_price - open_price
+    prev_close = close_price / np.maximum(1.0 + ret_1, eps)
+
+    if name == "intraday_return":
+        return body_size / np.maximum(open_price, eps)
+    if name == "upper_shadow":
+        return (high_price - np.maximum(open_price, close_price)) / np.maximum(close_price, eps)
+    if name == "lower_shadow":
+        return (np.minimum(open_price, close_price) - low_price) / np.maximum(close_price, eps)
+    if name == "close_location":
+        return (close_price - low_price) / range_size - 0.5
+    if name == "overnight_gap":
+        return open_price / np.maximum(prev_close, eps) - 1.0
+    if name == "body_to_range":
+        return body_size / range_size
+    raise ValueError(f"Unsupported derived feature: {name}")
+
+
 def assemble_feature_matrices(
     splits: dict[str, object],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
@@ -113,11 +142,22 @@ def assemble_feature_matrices(
     for column in EXTRA_FEATURE_COLUMNS:
         if column in splits["train"].frame.columns:
             feature_names.append(column)
+    drop_features = set(get_env_csv("AR_DROP_FEATURES", DROP_FEATURE_COLUMNS))
+    feature_names = [name for name in feature_names if name not in drop_features]
+
+    derived_feature_names = list(get_env_csv("AR_DERIVED_FEATURES", DERIVED_FEATURE_COLUMNS))
+
+    def assemble_split(frame) -> np.ndarray:
+        columns = [frame[feature_names].to_numpy(dtype=np.float32)]
+        for name in derived_feature_names:
+            columns.append(build_derived_feature_column(frame, name).reshape(-1, 1))
+        return np.concatenate(columns, axis=1)
+
     return (
-        splits["train"].frame[feature_names].to_numpy(dtype=np.float32),
-        splits["validation"].frame[feature_names].to_numpy(dtype=np.float32),
-        splits["test"].frame[feature_names].to_numpy(dtype=np.float32),
-        feature_names,
+        assemble_split(splits["train"].frame),
+        assemble_split(splits["validation"].frame),
+        assemble_split(splits["test"].frame),
+        feature_names + derived_feature_names,
     )
 
 
@@ -142,6 +182,29 @@ def get_env_int(name: str, default: int) -> int:
 def get_env_str(name: str, default: str) -> str:
     value = os.getenv(name)
     return value if value is not None else default
+
+
+def get_env_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
+def get_env_interaction_pairs(
+    name: str, default: tuple[tuple[str, str], ...]
+) -> tuple[tuple[str, str], ...]:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    pairs = list(default)
+    for part in value.split(","):
+        left, sep, right = part.strip().partition(":")
+        if sep and left and right:
+            candidate = (left.strip(), right.strip())
+            if candidate not in pairs:
+                pairs.append(candidate)
+    return tuple(pairs)
 
 
 def classification_stats(probabilities: np.ndarray, labels: np.ndarray, threshold: float) -> tuple[float, float, float, float, np.ndarray]:
