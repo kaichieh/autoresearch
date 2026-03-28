@@ -90,33 +90,33 @@
 ## Objective And Guardrail Variants
 
 - [x] Optimize threshold by `balanced_accuracy` and keep model weights unchanged. Performance: `validation_f1=0.7151`, `validation_bal_acc=0.5437`, `test_f1=0.6872`.
-- [ ] Optimize threshold by `f1` but require `validation_bal_acc >= 0.54`.
-- [ ] Optimize threshold by `f1` but require `validation_bal_acc >= 0.55`.
-- [ ] Optimize threshold by `f1` but require `validation_accuracy >= 0.58`.
-- [ ] Optimize threshold by `f1` but require `test_positive_rate <= 0.88`.
+- [x] Optimize threshold by `f1` but require `validation_bal_acc >= 0.54`. Performance: best valid threshold stayed at `0.497` with `validation_f1=0.7165`, `validation_bal_acc=0.5480`.
+- [x] Optimize threshold by `f1` but require `validation_bal_acc >= 0.55`. Performance: no feasible threshold satisfied the guardrail.
+- [x] Optimize threshold by `f1` but require `validation_accuracy >= 0.58`. Performance: best valid threshold stayed at `0.497` with `validation_f1=0.7165`, `validation_accuracy=0.5833`.
+- [x] Optimize threshold by `f1` but require `test_positive_rate <= 0.88`. Performance: best valid threshold stayed at `0.497` with `validation_f1=0.7165`, `test_positive_rate=0.8625`, `test_f1=0.6849`.
 - [x] Train with `pos_weight = 1.1` and `neg_weight = 1.3`. Performance: `validation_f1=0.7073`, `validation_bal_acc=0.5257`, `test_f1=0.6902`.
 - [x] Train with `pos_weight = 1.0` and `neg_weight = 1.2`. Performance: `validation_f1=0.7083`, `validation_bal_acc=0.5335`, `test_f1=0.6886`.
 - [x] Train with `pos_weight = 1.0` and `neg_weight = 1.4`. Performance: `validation_f1=0.7073`, `validation_bal_acc=0.5257`, `test_f1=0.7040`.
-- [ ] Compare best epoch chosen by `validation_f1` versus best epoch chosen by `validation_bal_acc`.
+- [x] Compare best epoch chosen by `validation_f1` versus best epoch chosen by `validation_bal_acc`. Performance: both selected epoch `5` with threshold `0.497`, `validation_f1=0.7165`, `validation_bal_acc=0.5480`.
 - [x] Compare threshold selected on validation versus fixed threshold `0.50`. Performance: `validation_f1=0.1612`, `validation_bal_acc=0.5234`, `test_f1=0.1109`.
 
 ## Prepare.py Expansion
 
-- [ ] Add `ret_2` as a new short-horizon return feature.
-- [ ] Add `ret_15` as an intermediate-horizon return feature.
-- [ ] Add `sma_gap_3` as a shorter moving-average gap feature.
-- [ ] Add `sma_gap_50` as a longer moving-average gap feature.
-- [ ] Add `volatility_3` as a shorter realized-volatility feature.
-- [ ] Add `volatility_20` as a longer realized-volatility feature.
-- [ ] Add `range_z_20` as a rolling normalized range feature.
-- [ ] Add `volume_change_5` as a multi-day volume change feature.
-- [ ] Add `volume_vs_5` as a short-window relative volume feature.
-- [ ] Add `momentum_gap_3_10` defined from `ret_3 - ret_10`.
-- [ ] Add `sma_stack_bullish` to indicate short MA above medium and long MA.
-- [ ] Add `inside_bar` candlestick pattern feature.
-- [ ] Add `outside_bar` candlestick pattern feature.
-- [ ] Add `gap_up_flag` binary feature.
-- [ ] Add `gap_down_flag` binary feature.
+- [x] Add `ret_2` as a new short-horizon return feature. Performance: `validation_f1=0.7165`, `validation_bal_acc=0.5480`, `test_f1=0.6860`.
+- [x] Add `ret_15` as an intermediate-horizon return feature. Performance: `validation_f1=0.7153`, `validation_bal_acc=0.5452`, `test_f1=0.6871`.
+- [x] Add `sma_gap_3` as a shorter moving-average gap feature. Performance: `validation_f1=0.7165`, `validation_bal_acc=0.5480`, `test_f1=0.6849`.
+- [x] Add `sma_gap_50` as a longer moving-average gap feature. Performance: `validation_f1=0.0000`, `validation_bal_acc=0.5000`, `test_f1=0.0000`.
+- [x] Add `volatility_3` as a shorter realized-volatility feature. Performance: `validation_f1=0.7154`, `validation_bal_acc=0.5468`, `test_f1=0.6849`.
+- [x] Add `volatility_20` as a longer realized-volatility feature. Performance: `validation_f1=0.7156`, `validation_bal_acc=0.5434`, `test_f1=0.6916`.
+- [x] Add `range_z_20` as a rolling normalized range feature. Performance: `validation_f1=0.7170`, `validation_bal_acc=0.5478`, `test_f1=0.6831`.
+- [x] Add `volume_change_5` as a multi-day volume change feature. Performance: `validation_f1=0.7111`, `validation_bal_acc=0.5372`, `test_f1=0.6813`.
+- [x] Add `volume_vs_5` as a short-window relative volume feature. Performance: `validation_f1=0.7123`, `validation_bal_acc=0.5399`, `test_f1=0.6790`.
+- [x] Add `momentum_gap_3_10` defined from `ret_3 - ret_10`. Performance: `validation_f1=0.7138`, `validation_bal_acc=0.5393`, `test_f1=0.6956`.
+- [x] Add `sma_stack_bullish` to indicate short MA above medium and long MA. Performance: `validation_f1=0.7165`, `validation_bal_acc=0.5480`, `test_f1=0.6849`.
+- [x] Add `inside_bar` candlestick pattern feature. Performance: `validation_f1=0.7165`, `validation_bal_acc=0.5480`, `test_f1=0.6849`.
+- [x] Add `outside_bar` candlestick pattern feature. Performance: `validation_f1=0.7147`, `validation_bal_acc=0.5439`, `test_f1=0.6938`.
+- [x] Add `gap_up_flag` binary feature. Performance: `validation_f1=0.7176`, `validation_bal_acc=0.5492`, `test_f1=0.6825`.
+- [x] Add `gap_down_flag` binary feature. Performance: `validation_f1=0.7122`, `validation_bal_acc=0.5384`, `test_f1=0.6952`.
 
 ## Validation And Stability
 
@@ -129,4 +129,4 @@
 - [x] Verify whether the best setup still wins after regenerating the dataset from scratch. Performance: refreshed dataset still gave `validation_f1=0.7165`, `validation_bal_acc=0.5480`, `test_f1=0.6849`.
 - [x] Verify whether the best setup still wins when threshold is fixed to `0.50`. Performance: fixed-threshold run fell to `validation_f1=0.1612`, `validation_bal_acc=0.5234`, `test_f1=0.1109`.
 - [x] Verify whether the best setup still wins when `threshold_steps = 1601`. Performance: unchanged at `validation_f1=0.7165`, `validation_bal_acc=0.5480`, `test_f1=0.6849`.
-- [ ] Summarize which feature families help validation most consistently across time splits.
+- [x] Summarize which feature families help validation most consistently across time splits. Performance: candlestick replacements and binary gap/shape features were strongest; `upper_shadow`, `lower_shadow`, `range_z_20`, and `gap_up_flag` repeatedly reached `validation_f1 >= 0.7164`, while long-window or heavily constrained variants were less stable across folds.

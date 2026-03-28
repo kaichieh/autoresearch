@@ -47,6 +47,24 @@ FEATURE_COLUMNS = [
 ]
 TARGET_COLUMN = "target_up"
 
+EXPERIMENTAL_FEATURE_COLUMNS = [
+    "ret_2",
+    "ret_15",
+    "sma_gap_3",
+    "sma_gap_50",
+    "volatility_3",
+    "volatility_20",
+    "range_z_20",
+    "volume_change_5",
+    "volume_vs_5",
+    "momentum_gap_3_10",
+    "sma_stack_bullish",
+    "inside_bar",
+    "outside_bar",
+    "gap_up_flag",
+    "gap_down_flag",
+]
+
 
 @dataclass(frozen=True)
 class DatasetSplit:
@@ -81,20 +99,28 @@ def add_features(frame: pd.DataFrame) -> pd.DataFrame:
     volume = df["volume"].replace(0, np.nan)
 
     df["ret_1"] = close.pct_change(1)
+    df["ret_2"] = close.pct_change(2)
     df["ret_3"] = close.pct_change(3)
     df["ret_5"] = close.pct_change(5)
     df["ret_10"] = close.pct_change(10)
+    df["ret_15"] = close.pct_change(15)
     df["ret_20"] = close.pct_change(20)
 
+    df["sma_gap_3"] = close / close.rolling(3).mean() - 1.0
     df["sma_gap_5"] = close / close.rolling(5).mean() - 1.0
     df["sma_gap_10"] = close / close.rolling(10).mean() - 1.0
     df["sma_gap_20"] = close / close.rolling(20).mean() - 1.0
+    df["sma_gap_50"] = close / close.rolling(50).mean() - 1.0
 
+    df["volatility_3"] = df["ret_1"].rolling(3).std()
     df["volatility_5"] = df["ret_1"].rolling(5).std()
     df["volatility_10"] = df["ret_1"].rolling(10).std()
+    df["volatility_20"] = df["ret_1"].rolling(20).std()
     df["range_pct"] = (df["high"] - df["low"]) / close
 
     df["volume_change_1"] = volume.pct_change(1)
+    df["volume_change_5"] = volume.pct_change(5)
+    df["volume_vs_5"] = volume / volume.rolling(5).mean() - 1.0
     df["volume_vs_20"] = volume / volume.rolling(20).mean() - 1.0
 
     # Extra features for extended model
@@ -115,6 +141,28 @@ def add_features(frame: pd.DataFrame) -> pd.DataFrame:
     volume_std_20 = volume.rolling(20).std()
     df["price_z_20"] = (close - close_mean_20) / (close_std_20 + 1e-10)
     df["volume_z_20"] = (volume - volume_mean_20) / (volume_std_20 + 1e-10)
+    df["range_z_20"] = (df["range_pct"] - df["range_pct"].rolling(20).mean()) / (
+        df["range_pct"].rolling(20).std() + 1e-10
+    )
+    df["momentum_gap_3_10"] = df["ret_3"] - df["ret_10"]
+
+    sma_5 = close.rolling(5).mean()
+    sma_10 = close.rolling(10).mean()
+    sma_20 = close.rolling(20).mean()
+    df["sma_stack_bullish"] = ((sma_5 > sma_10) & (sma_10 > sma_20)).astype(float)
+
+    prev_high = df["high"].shift(1)
+    prev_low = df["low"].shift(1)
+    prev_open = df["open"].shift(1)
+    prev_close = close.shift(1)
+    prev_body_high = np.maximum(prev_open, prev_close)
+    prev_body_low = np.minimum(prev_open, prev_close)
+    curr_body_high = np.maximum(df["open"], close)
+    curr_body_low = np.minimum(df["open"], close)
+    df["inside_bar"] = ((df["high"] <= prev_high) & (df["low"] >= prev_low)).astype(float)
+    df["outside_bar"] = ((df["high"] >= prev_high) & (df["low"] <= prev_low)).astype(float)
+    df["gap_up_flag"] = (df["open"] > prev_body_high).astype(float)
+    df["gap_down_flag"] = (df["open"] < prev_body_low).astype(float)
 
     trend_sign_3 = np.sign(df["ret_3"])
     trend_sign_5 = np.sign(df["ret_5"])

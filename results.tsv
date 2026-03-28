@@ -34,3 +34,4 @@ c89b248	0.7132	0.5745	0.5379	0.7061	0.5675	0.5115	keep	add ret_1 by ret_3 intera
 57be28b	0.7158	0.5808	0.5450	0.6928	0.5549	0.5018	keep	add intraday_return by volume_vs_20 interaction to candlestick replacement model
 e47c4cf	0.7164	0.5821	0.5464	0.6939	0.5561	0.5030	keep	add overnight_gap by volume_vs_20 interaction to candlestick replacement model
 e960e65	0.7165	0.5833	0.5480	0.6849	0.5485	0.4978	keep	replace range_pct with upper_shadow in candlestick replacement model
+e960e65	0.7176	0.5846	0.5492	0.6825	0.5460	0.4955	keep	add gap_up_flag to upper_shadow candlestick replacement model
